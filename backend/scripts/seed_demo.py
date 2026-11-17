@@ -9,7 +9,7 @@ from src.models.run import Run
 from src.models import note,audit
 from src.utils.security import hash_password
 from src.utils.serialization import now
-from src.services.runs import queue
+from src.services.runs import enqueue
 from src.services.domain_validation import validate_record
 
 def seed_values(kind,index,batch,rng):
@@ -54,6 +54,5 @@ def seed():
                 run=Run(source_id=source.id,name='首轮种子研究',state='queued',parameters=CONFIG['default_parameters'],snapshot={'source':{'id':source.id,'name':source.name,'filename':source.filename},'records':records},created_at=now());db.add(run);db.flush();queued.append(run.id)
         db.commit();print(json.dumps(counts(db),ensure_ascii=False))
     for id in queued:
-        try:queue.rpush('analysis:queue',id)
-        except Exception:logging.exception('seed queue unavailable')
+        if not enqueue(id):logging.warning('seed queue unavailable; worker will backfill run %s from database',id)
 if __name__=='__main__':seed()

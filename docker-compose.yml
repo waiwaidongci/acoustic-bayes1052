@@ -35,6 +35,9 @@ services:
       JWT_SECRET: ${JWT_SECRET:-acoustic-bayes-demo-secret-change-before-deployment}
       SEED_DEMO: ${SEED_DEMO:-true}
       ARTIFACT_DIR: /artifacts
+      RUN_LEASE_SECONDS: ${RUN_LEASE_SECONDS:-60}
+      RUN_HEARTBEAT_SECONDS: ${RUN_HEARTBEAT_SECONDS:-10}
+      RUN_MAX_ATTEMPTS: ${RUN_MAX_ATTEMPTS:-5}
       OPENBLAS_NUM_THREADS: 1
       OMP_NUM_THREADS: 1
     ports: ["${BACKEND_PORT:-19245}:8000"]

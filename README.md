@@ -68,6 +68,8 @@ GaussianNB与分层交叉验证、混淆矩阵和后验解释，全部计算位�
 
 失败态：业务字段缺失/非有限数值、参数越界、样本不足、退化特征或结构错误均明确拒绝或将任务标failed，错误消息保存在任务中。可回到来源或配置修正后重新执行，历史失败记录保留。
 
+断电与中断恢复：任务受理先写数据库，Redis 列表只是唤醒提示。队列停机时仍能创建任务（状态“等待执行”），队列恢复后 worker 按数据库补算。worker 执行时持有带过期时间的租约并定期续租；进程断电后租约到期，其他 worker 自动接管（页面显示“接管重算”），已落库的结果直接沿用、不重复生成。领取、续租、失败与发布都以租约令牌做条件更新，因此并发争抢只有一个赢家，旧进程晚到也无法发布结果、失败原因或覆盖成品文件。完成态要求结果与导出 CSV 齐备且 SHA256 一致才显示“已完成”；发布中途崩溃（状态完成但文件缺失）由 worker 或下一次导出按已存结果补写，不会重算，也不导出与结果不符的文件。自动接管超过 `RUN_MAX_ATTEMPTS` 次后任务明确失败并保留原因。旧研究（无成品元数据的历史完成记录）照常可读。
+
 已知边界：独立同分布、特征条件独立和高斯类条件是假设；后验未校准。演示数据刻意有分离度，准确率不代表真实设备效果。使用分层折外验证，不提供外部最终测试集。
 
 ## 演示数据与一天剧本
@@ -102,7 +104,9 @@ backend/migrations/001_initial.sql
 | JWT_SECRET | `.env.example`演示值，部署前修改 |
 | DATABASE_URL / REDIS_URL | Compose内部连接，定义在compose的env锚点 |
 | ARTIFACT_DIR | `/artifacts`，后端worker共享 |
+| RUN_LEASE_SECONDS / RUN_HEARTBEAT_SECONDS | `60 / 10`，任务租约时长与续租间隔；断电后最多租约时长被接管 |
+| RUN_MAX_ATTEMPTS | `5`，自动接管上限，超过后任务明确失败并保留原因 |
 
-共享枚举：`backend/src/constants/enums.py` 与 `frontend/src/constants/enums.js` 都定义 admin/analyst/viewer、queued/running/completed/failed、draft/approved。后端service检查对应字符串；README为全量值说明。共享前端组件table/status/chart/business跨总览、结果、配置与复核复用；actions hook和format utils负责交互/格式。后端errors与rate_limit是两个中间件。
+共享枚举：`backend/src/constants/enums.py` 与 `frontend/src/constants/enums.js` 都定义 admin/analyst/viewer、queued/running/completed/failed、draft/approved；前端另有页面阶段 waiting/running/takeover/recovering/failed（由后端 `phase` 字段给出）。后端service检查对应字符串；README为全量值说明。共享前端组件table/status/chart/business跨总览、结果、配置与复核复用；actions hook和format utils负责交互/格式。后端errors与rate_limit是两个中间件。
 
 测试及截图在批根 `test-artifacts/gb-0041/`，不混入源码。独立算法oracle、HTTP完整流程和真实Playwright浏览器流程见该目录 `TESTING.md`。License：MIT。
